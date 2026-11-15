@@ -191,7 +191,10 @@ reconnects to the current job. Only one upload/import/build runs at a time.
 
 Select **同時下載影片，在逐字稿旁同步播放** to also download a video, up to 720p
 and 2 GiB. This is unchecked by default. The finished player shows video beside
-the transcript on desktop and above it on smaller screens. Video sound, word
+the transcript on desktop and above it on smaller screens. On phones, the video
+stays below the pinned playback controls while you scroll through the transcript;
+tap **跟讀設定** to expand looping and other practice options. Short landscape
+screens use a side-by-side layout to leave room for reading. Video sound, word
 highlighting, transcript/time jumps, sentence looping, sentence-end pauses,
 playback speed and saved progress share the same video playback timeline. The
 video's native controls also update transcript highlighting and playback progress.

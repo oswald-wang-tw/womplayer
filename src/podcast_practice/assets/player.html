@@ -20,6 +20,27 @@ kbd{display:inline-block;font:inherit;font-size:12px;background:var(--card);bord
 @media(max-width:800px){.sentence{scroll-margin-top:275px}}
 .video-panel[hidden]{display:none}.video-panel{margin-bottom:22px}.video-panel video{display:block;width:100%;aspect-ratio:16/9;max-height:45vh;object-fit:contain;background:#15191a;border-radius:12px}.video-panel p{margin:9px 0 0}.has-video .shell{max-width:1480px}.has-video .layout{grid-template-columns:minmax(300px,0.95fr) minmax(0,1.05fr);gap:30px}.has-video .sidebar{max-height:calc(100vh - 260px);overflow:auto;padding-right:3px}.has-video .chapters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.has-video .sidebar .note{display:none}
 @media(max-width:1000px){.has-video .layout{grid-template-columns:minmax(0,1fr)}.has-video .sidebar{position:static;max-height:none;overflow:visible}.has-video .chapters{display:flex;overflow:auto}.has-video .video-panel h2{display:block}.has-video .video-panel{max-width:650px;margin:0 auto 20px}.has-video .video-panel video{max-height:40vh}}
+/* Both sticky regions use measured heights, including when settings are expanded. */
+.practice-settings>summary{display:none;cursor:pointer;font-size:13px;color:var(--green);padding:10px 0}
+.sentence{scroll-margin-top:calc(var(--player-height,240px) + 16px)}
+.has-video .sidebar{top:calc(var(--player-height,240px) + 12px);max-height:calc(100vh - var(--player-height,240px) - 24px)}
+@media(max-width:1000px){
+ .has-video .practice-settings>summary{display:list-item;min-height:40px}
+ /* Let the video stick within the full transcript, beyond the sidebar's original height. */
+ .has-video .sidebar{display:contents}
+ .has-video .video-panel{position:sticky;top:var(--player-height,240px);z-index:4;align-self:start;width:100%;max-width:none;margin:0;background:var(--paper);padding-bottom:8px}
+ .has-video .video-panel h2,.has-video .video-panel p{display:none}
+ .has-video .video-panel video{max-height:24vh;max-height:24svh}
+ .has-video .sentence{scroll-margin-top:calc(var(--player-height,240px) + var(--video-height,200px) + 16px)}
+}
+/* A short landscape viewport has more reading space with video beside the transcript. */
+@media(max-width:1000px) and (max-height:600px) and (orientation:landscape){
+ .has-video .layout{grid-template-columns:minmax(220px,.9fr) minmax(0,1.1fr);gap:20px}
+ .has-video .sidebar{display:block;position:sticky;overflow:auto;max-height:calc(100vh - var(--player-height,240px) - 16px)}
+ .has-video .video-panel{position:static;padding-bottom:0;margin-bottom:12px}
+ .has-video .video-panel video{max-height:calc(100vh - var(--player-height,240px) - 24px)}
+ .has-video .sentence{scroll-margin-top:calc(var(--player-height,240px) + 16px)}
+}
 </style>
 </head>
 <body>
@@ -30,9 +51,11 @@ kbd{display:inline-block;font:inherit;font-size:12px;background:var(--card);bord
   <audio id="audio" preload="metadata"></audio>
   <div class="play-row"><button class="play" id="play" aria-label="播放">▶ 播放</button><button id="prev" title="上一句（←）">← 上一句</button><button id="next" title="下一句（→）">下一句 →</button><span class="clock"><span id="now">00:00</span> / <span id="duration">00:00</span></span><span class="spacer"></span><a id="home" class="home-link" href="../index.html" aria-label="回到首頁">← 回到首頁</a><label class="speed">速度 <select id="speed" aria-label="播放速度"><option value="0.6">0.6×</option><option value="0.75">0.75×</option><option value="0.85">0.85×</option><option value="1" selected>1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label></div>
   <input class="timeline" id="seek" type="range" min="0" max="1" step="0.01" value="0" aria-label="播放進度">
+  <details id="practice-settings" class="practice-settings" open><summary>跟讀設定</summary>
   <div class="options"><label><input id="loop" type="checkbox">循環這一句</label><label>間隔 <select id="gap"><option value="0">0 秒</option><option value="1" selected>1 秒</option><option value="2">2 秒</option><option value="3">3 秒</option></select></label><label><input id="pauseEnd" type="checkbox">句尾暫停</label><label><input id="follow" type="checkbox" checked>自動跟隨</label><button id="hide" aria-pressed="false">隱藏原稿</button><button id="reveal" aria-pressed="false" hidden>顯示這一句</button><button id="shortcuts" aria-haspopup="dialog" aria-controls="shortcut-dialog">快捷鍵 <kbd>?</kbd></button></div>
-  <p class="status" id="status" role="status">點選文字可跳播；空白鍵播放／暫停，左右方向鍵切換句子。</p>
   <div class="options progress-row"><span id="progress-status">播放進度會自動儲存在此瀏覽器。</span><button id="restart" title="重設這集的播放進度">從頭開始</button></div>
+  </details>
+  <p class="status" id="status" role="status">點選文字可跳播；空白鍵播放／暫停，左右方向鍵切換句子。</p>
  </section>
  <div class="layout"><aside class="sidebar"><section id="video-panel" class="video-panel" aria-labelledby="video-heading" hidden><h2 id="video-heading">影片與逐字稿同步</h2><video id="video" controls controlslist="noplaybackrate" playsinline preload="metadata" aria-label="同步練習影片"></video><p class="help">點選字幕或時間戳即可跳轉影片。離線使用時，請保留同資料夾的 video.mp4。</p></section><h2>EPISODE CHAPTERS</h2><nav class="chapters" id="chapters" aria-label="段落導航"></nav><p class="note">先聽一次，再顯示原稿。<br>遇到不熟的句子，開啟循環，留一秒跟讀。<br><br>音樂、廣告與未提供原稿的部分不會顯示同步文字。</p></aside><main><div class="reader-top"><h2>Transcript <span id="count" style="font-size:12px;font-weight:400;color:var(--muted)"></span></h2><input id="search" class="search" type="search" placeholder="搜尋單字或片語" aria-label="搜尋原稿"></div><p class="help mobile-note">點選句子跳播；隱藏原稿後可單獨揭開目前這一句。</p><div id="transcript" class="transcript" aria-label="同步原稿"></div><footer>__TRANSCRIPT_SOURCE__，僅供本機練習。<br>時間由 Montreal Forced Aligner 在本機自動對齊，少數字詞邊界可能略有偏差。此播放器不需要帳號、網路或訂閱。</footer></main></div>
 </div>
@@ -44,6 +67,21 @@ const $=id=>document.getElementById(id), hasVideo=DATA.video?.file==='video.mp4'
 // One media element owns sound, timestamps, controls and saved progress.
 const audio=hasVideo?$('video'):$('audio'), sentences=DATA.sentences;
 $('video-panel').hidden=!hasVideo;document.body.classList.toggle('has-video',hasVideo);
+const mobileVideoLayout=window.matchMedia?.('(max-width:1000px)');
+const landscapeVideoLayout=window.matchMedia?.('(max-width:1000px) and (max-height:600px) and (orientation:landscape)');
+function configurePracticeSettings(){
+ $('practice-settings').open=!(hasVideo&&mobileVideoLayout?.matches);
+}
+if(mobileVideoLayout){configurePracticeSettings();mobileVideoLayout.addEventListener('change',configurePracticeSettings);}
+if(typeof ResizeObserver!=='undefined'){
+ const controls=document.querySelector('.player'),videoPanel=$('video-panel');
+ const measureStickyRegions=()=>{
+  document.documentElement.style.setProperty('--player-height',`${Math.ceil(controls.getBoundingClientRect().height)}px`);
+  document.documentElement.style.setProperty('--video-height',`${Math.ceil(videoPanel.getBoundingClientRect().height)}px`);
+ };
+ const stickyObserver=new ResizeObserver(measureStickyRegions);
+ stickyObserver.observe(controls);if(hasVideo)stickyObserver.observe(videoPanel);measureStickyRegions();
+}
 audio.src='__AUDIO_DATA_URI__';
 const fmt=t=>`${Math.floor(t/60).toString().padStart(2,'0')}:${Math.floor(t%60).toString().padStart(2,'0')}`;
 $('duration').textContent=fmt(DATA.duration);$('seek').max=DATA.duration;
@@ -115,7 +153,11 @@ function update(){const t=audio.currentTime;
  let si=sentenceMode?selected:lastBefore(sentences,t);if(!sentenceMode&&si>=0&&t>sentences[si].end+.15)si=-1;
  // Read geometry before changing classes or controls to avoid forced full-page layout.
  let scrollBehavior=null;
- if(si>=0&&$('follow').checked&&lastScroll!==si){const rect=rows[si].getBoundingClientRect(),player=$('status').getBoundingClientRect();if(rect.top<player.bottom+20||rect.bottom>window.innerHeight-80)scrollBehavior=Math.abs(rect.top-player.bottom)>window.innerHeight?'auto':'smooth';lastScroll=si;}
+ if(si>=0&&$('follow').checked&&lastScroll!==si){
+  const rect=rows[si].getBoundingClientRect();let top=$('status').getBoundingClientRect().bottom;
+  if(hasVideo&&mobileVideoLayout?.matches&&!landscapeVideoLayout?.matches)top=Math.max(top,$('video-panel').getBoundingClientRect().bottom);
+  if(rect.top<top+20||rect.bottom>window.innerHeight-80)scrollBehavior=Math.abs(rect.top-top)>window.innerHeight?'auto':'smooth';lastScroll=si;
+ }
  const clock=fmt(t);if(clock!==lastClock){$('now').textContent=clock;lastClock=clock;}
  const progress=Math.floor(t*10);if(!seekDragging&&progress!==lastSeek){$('seek').value=t;lastSeek=progress;}
  const wi=lastBefore(timedWords,t);const w=wi>=0&&t<=timedWords[wi].end&&timedWords[wi].sentence===si?wi:-1;

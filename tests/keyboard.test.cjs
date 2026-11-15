@@ -111,9 +111,14 @@ function fixture(page = 'player', suppliedData, options = {}) {
       link.append(label); elements.get('episodes').append(link);
     }
   }
-  const window = {innerHeight: 1000, addEventListener: (key, fn) => {
+  const window = {innerHeight: options.viewport?.height || 1000, addEventListener: (key, fn) => {
     const list = windowListeners.get(key) || []; list.push(fn); windowListeners.set(key, list);
   }};
+  if (options.viewport) window.matchMedia = query => ({
+    matches: options.viewport.width <= 1000 && (!query.includes('orientation:landscape') ||
+      (options.viewport.width > options.viewport.height && options.viewport.height <= 600)),
+    addEventListener() {},
+  });
   const context = {
     document, window, location: {protocol: 'http:', pathname: '/fixture/player.html', href: 'http://localhost/fixture/player.html'},
     URL, Date: {now: () => clock},
@@ -227,6 +232,21 @@ test('seeking back to the same sentence follows again after leaving it', () => {
   seek.value = 6.5; seek.dispatchEvent({type: 'input'});
   assert.equal(f.stats.scrolls, 2);
   assert.equal(row.classList.contains('active'), true);
+});
+
+test('mobile following keeps sentences below the pinned video, with landscape video beside them', () => {
+  for (const viewport of [{width: 390, height: 844}, {width: 844, height: 390}]) {
+    const f = fixture('player', undefined, {video: true, viewport});
+    f.elements.get('status').rect = {top: 170, bottom: 200};
+    f.elements.get('video-panel').rect = {top: 200, bottom: 400};
+    const row = f.elements.get('transcript').children[1];
+    row.rect = {top: 260, bottom: 300};
+    const before = f.stats.scrolls, video = f.elements.get('video');
+    video.currentTime = 6.5;
+    video.dispatchEvent({type: 'timeupdate'});
+    assert.equal(f.stats.scrolls - before, viewport.width < viewport.height ? 1 : 0);
+    assert.equal(row.classList.contains('active'), true);
+  }
 });
 
 test('speed changes use the existing choices and stop at their limits', () => {
