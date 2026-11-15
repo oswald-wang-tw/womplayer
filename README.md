@@ -269,6 +269,26 @@ up to 90 MiB, with a 5 MiB transcript limit, so each request stays below the
 reverse proxy's usual 100 MB request limit. Larger MP3 files can be added locally
 and will appear in the same library on the website.
 
+## Suggested podcasts
+
+Looking for something to practise with? Browse these YouTube channels and
+playlists, then open an individual episode and paste its video URL into Womplayer.
+
+| Podcast | Topics and listening focus |
+| --- | --- |
+| [Conan O'Brien Needs a Friend](https://www.youtube.com/playlist?list=PLVL8S3lUHf0Te3TvS37LaF6dk4rhkc2gg) | Comedy and celebrity interviews; informal conversation and humour. |
+| [Machine Gods](https://www.youtube.com/playlist?list=PLQF0_EIyfaCQ) | AI news, analysis, and interviews; technology vocabulary. |
+| [The Rest Is Politics](https://www.youtube.com/@restispolitics) | British and international politics; discussion, debate, and current affairs. |
+| [All-In Podcast](https://www.youtube.com/playlist?list=PLn5MTSAqaf8peDZQ57QkJBzewJU1aUokl) | Business, technology, and society; conversations with multiple speakers. |
+| [Leading](https://www.youtube.com/@LeadingTRIP) | Long-form interviews about politics, leadership, and public life. |
+| [The Rest Is Politics US](https://www.youtube.com/@RestPoliticsUS) | US politics and current affairs; conversational analysis. |
+| [The Rest Is History](https://www.youtube.com/@restishistorypod) | History and storytelling; extended explanations and narrative vocabulary. |
+
+Womplayer imports **one video at a time**, rather than an entire channel or
+playlist. Pick a public English-language video with English captions; caption
+availability and quality vary by episode. Start with a short passage on a familiar
+topic, then use slower playback and sentence looping to practise at your own pace.
+
 ## Keyboard shortcuts
 
 The player and library both have a shortcut-help button. Press `?` to open the
