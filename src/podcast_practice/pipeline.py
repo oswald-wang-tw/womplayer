@@ -10,6 +10,7 @@ import subprocess
 import wave
 from dataclasses import dataclass
 from datetime import date
+from importlib.resources import files
 from pathlib import Path
 
 from praatio import textgrid
@@ -37,6 +38,7 @@ class BuildOptions:
     force: bool = False
     windows: Path | None = None
     allow_low_confidence: bool = False
+    media_source: dict | None = None
 
 
 def fingerprint(paths: list[Path], settings: dict) -> str:
@@ -78,27 +80,40 @@ def mfa_align(
     clean: bool,
 ) -> dict:
     if not result.exists():
-        runtime.run(
-            [
-                runtime.mfa,
-                "align_one",
-                audio,
-                text,
-                dictionary,
-                MODELS["acoustic"],
-                result,
-                "--no_tokenization",
-                "--output_format",
-                "json",
-                "--beam",
-                "60",
-                "--retry_beam",
-                "200",
-                "--no_use_mp",
-                "--clean" if clean else "--no_clean",
-            ],
-            log=job / "mfa.log",
-        )
+        failure = job / "alignment-failure.json"
+        previous_failure = failure.stat().st_mtime_ns if failure.is_file() else None
+        command = [
+            runtime.python,
+            str(files("podcast_practice").joinpath("mfa_runner.py")),
+            failure,
+            "align_one",
+            audio,
+            text,
+            dictionary,
+            MODELS["acoustic"],
+            result,
+            "--no_tokenization",
+            "--output_format",
+            "json",
+            "--beam",
+            "60",
+            "--retry_beam",
+            "200",
+            "--no_use_mp",
+            "--clean" if clean else "--no_clean",
+        ]
+        try:
+            runtime.run(command, log=job / "mfa.log")
+        except PracticeError as exc:
+            if failure.is_file() and failure.stat().st_mtime_ns != previous_failure:
+                row = json.loads(failure.read_text(encoding="utf-8"))
+                raise PracticeError(
+                    f"MFA 無法對齊第 {row['utterance'] + 1} 段"
+                    f"（{row['begin']:.3f}–{row['end']:.3f} 秒）："
+                    f"{row['transcript'][:180]}。請檢查這段字幕與語音是否吻合。"
+                    f"詳細記錄：{job / 'mfa.log'}"
+                ) from exc
+            raise
     return json.loads(result.read_text(encoding="utf-8"))
 
 
@@ -111,7 +126,10 @@ def build(runtime: Runtime, options: BuildOptions) -> Path:
     for path in [audio, transcript_path] + ([options.windows] if options.windows else []):
         if not path.is_file():
             raise PracticeError(f"找不到檔案：{path}")
-    transcript = parse_transcript(transcript_path, set(options.speakers))
+    caption_style = (options.media_source or {}).get("provider") == "youtube"
+    transcript = parse_transcript(
+        transcript_path, set(options.speakers), caption_style=caption_style
+    )
     title = options.title or audio.stem
     model = options.asr_model or runtime.config.get("asr_model", "base.en")
     settings = {
@@ -123,6 +141,13 @@ def build(runtime: Runtime, options: BuildOptions) -> Path:
         "no_asr": options.no_asr,
         "allow_low_confidence": options.allow_low_confidence,
     }
+    if options.media_source:
+        if caption_style:
+            settings["caption_normalization_revision"] = 1
+        # A retrieval time must not change the identity of identical inputs.
+        settings["media_source"] = {
+            k: v for k, v in options.media_source.items() if k != "imported"
+        }
     key = fingerprint(
         [audio, transcript_path] + ([options.windows] if options.windows else []), settings
     )
@@ -303,6 +328,8 @@ def build(runtime: Runtime, options: BuildOptions) -> Path:
         },
         "review": report,
     }
+    if options.media_source:
+        metadata["media_source"] = options.media_source
     destination.mkdir(parents=True, exist_ok=True)
     export_episode(metadata, mp3, destination)
     (destination / "windows.json").write_text(

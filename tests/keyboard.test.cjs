@@ -94,8 +94,9 @@ function fixture(page = 'player', suppliedData, options = {}) {
     sentences: [1, 6, 12].map((start, id) => ({id, start, end: start + 2, speaker: 'Host', text: `Sentence ${id}`, words: [{text: `word${id}`, start, end: start + 1}]})),
   };
   if (page === 'player') {
+    if (options.video) data.video = {file: 'video.mp4'};
     elements.get('alignment-data').textContent = JSON.stringify(data);
-    const audio = elements.get('audio'); audio.paused = true; audio.currentTime = 0;
+    const audio = elements.get(data.video ? 'video' : 'audio'); audio.paused = true; audio.currentTime = 0;
     audio.duration = data.duration; audio.readyState = options.readyState ?? 1;
     audio.play = async () => { plays++; audio.paused = false; audio.dispatchEvent({type: 'play'}); };
     audio.pause = () => { const playing = !audio.paused; audio.paused = true; if (playing) audio.dispatchEvent({type: 'pause'}); };
@@ -138,7 +139,7 @@ function fixture(page = 'player', suppliedData, options = {}) {
   return {key, elements, document, data, timers, frames, stats, runFrame, storage, storageStats,
     advance: ms => { clock += ms; },
     windowEvent: event => { for (const fn of windowListeners.get(event.type) || []) fn(event); },
-    loadMetadata: (duration = data.duration) => { const audio = elements.get('audio'); audio.duration = duration; audio.readyState = 1; audio.dispatchEvent({type: 'loadedmetadata'}); },
+    loadMetadata: (duration = data.duration) => { const audio = elements.get(data.video ? 'video' : 'audio'); audio.duration = duration; audio.readyState = 1; audio.dispatchEvent({type: 'loadedmetadata'}); },
     get plays() { return plays; }, Element};
 }
 
@@ -516,4 +517,37 @@ test('library ignores damaged records and supports legacy path identities withou
   const blocked = fixture('library', undefined, {storageError: 'access'});
   assert.match(blocked.elements.get('progress-note').textContent, /無法讀取/);
   blocked.key('ArrowDown'); assert.equal(blocked.document.activeElement.id, 'episode-0');
+});
+
+test('video is the single media clock for subtitle jumps, speed and native controls', () => {
+  const f = fixture('player', undefined, {video: true}), video = f.elements.get('video');
+  assert.equal(f.elements.get('video-panel').hidden, false);
+  f.elements.get('transcript').children[1].click();
+  assert.equal(video.currentTime, 5.9);
+  assert.equal(video.paused, false);
+  assert.equal(f.plays, 1);
+  assert.equal(f.elements.get('audio').src, undefined);
+  f.elements.get('speed').value = '0.75';
+  f.elements.get('speed').dispatchEvent({type: 'change'});
+  assert.equal(video.playbackRate, 0.75);
+  video.currentTime = 12.3; video.dispatchEvent({type: 'seeked'});
+  assert.equal(f.elements.get('transcript').children[2].classList.contains('selected'), true);
+  assert.equal(f.key(' ', {target: video}).defaultPrevented, undefined);
+  f.elements.get('restart').click();
+  assert.equal(video.currentTime, 0); assert.equal(video.paused, true);
+});
+
+test('video resumes the same audio progress record and handles native seeking in loop mode', () => {
+  const storage = new Map([[progressKey('fixture-audio'), record(8)]]);
+  const f = fixture('player', undefined, {video: true, storage}), video = f.elements.get('video');
+  assert.equal(video.currentTime, 8); assert.equal(video.paused, true);
+  f.key('l'); f.key(' ');
+  video.seeking = true; video.currentTime = 12.3;
+  video.dispatchEvent({type: 'timeupdate'});
+  assert.equal(f.timers.size, 0);
+  video.seeking = false; video.dispatchEvent({type: 'seeked'});
+  assert.equal(f.elements.get('transcript').children[2].classList.contains('selected'), true);
+  video.currentTime = 14.2; video.dispatchEvent({type: 'timeupdate'});
+  assert.equal(video.paused, true); assert.equal(f.timers.size, 1);
+  assert.equal(JSON.parse(storage.get(progressKey('fixture-audio'))).time, 14.2);
 });

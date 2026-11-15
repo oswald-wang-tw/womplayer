@@ -50,6 +50,7 @@ def test_executables_and_environment_match_conda_layout(tmp_path, monkeypatch, s
     env = runtime.environment()
     paths = env["PATH"].split(os.pathsep)
     if system == "Windows":
+        assert runtime.python == runtime.prefix / "python.exe"
         assert runtime.mfa == runtime.prefix / "Scripts" / "mfa.exe"
         assert runtime.ffmpeg == runtime.prefix / "Library" / "bin" / "ffmpeg.exe"
         assert runtime.ffprobe == runtime.bin / "ffprobe.exe"
@@ -62,6 +63,7 @@ def test_executables_and_environment_match_conda_layout(tmp_path, monkeypatch, s
             str(runtime.prefix / "bin"),
         ]
     else:
+        assert runtime.python == runtime.prefix / "bin" / "python"
         assert runtime.mfa == runtime.prefix / "bin" / "mfa"
         assert runtime.ffmpeg == runtime.bin / "ffmpeg"
         assert runtime.ffprobe == runtime.bin / "ffprobe"
@@ -74,7 +76,7 @@ def test_executables_and_environment_match_conda_layout(tmp_path, monkeypatch, s
 
 
 def seed_runtime(runtime):
-    for path in (runtime.mfa, runtime.ffmpeg, runtime.ffprobe):
+    for path in (runtime.python, runtime.mfa, runtime.ffmpeg, runtime.ffprobe):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"fake executable")
     for kind in MODELS:
@@ -91,6 +93,10 @@ def test_ready_requires_mfa_ffmpeg_ffprobe_and_models(tmp_path, monkeypatch, sys
         runtime.require_ready()
     seed_runtime(runtime)
     runtime.require_ready()
+    runtime.python.unlink()
+    with pytest.raises(PracticeError, match="尚未安裝"):
+        runtime.require_ready()
+    runtime.python.write_bytes(b"fake python")
     runtime.ffprobe.unlink()
     with pytest.raises(PracticeError, match="尚未安裝"):
         runtime.require_ready()

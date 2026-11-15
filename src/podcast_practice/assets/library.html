@@ -11,6 +11,8 @@ dialog{max-width:480px;width:calc(100% - 36px);border:1px solid var(--line);bord
 kbd{display:inline-block;font:inherit;font-size:12px;background:#fffdf9;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:2px 6px;white-space:nowrap}.library-keys{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.library-keys button{font-size:13px}.episode:focus-within{border-color:#619891;background:#e8f0eb}#shortcut-dialog{max-height:85vh;overflow:auto}.shortcut-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.shortcut-heading h2{margin:0}.shortcut-list{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:12px 20px;font-size:14px;line-height:1.6}.shortcut-list dt,.shortcut-list dd{margin:0}.shortcut-list dd{align-self:center}
 .upload{padding:24px;margin:26px 0;border:1px solid var(--line);border-radius:14px;background:#fffdf9}.upload h2{font-size:20px;margin:0 0 8px}.upload .help{margin:0 0 18px}.upload fieldset{border:0;padding:0;margin:0;min-width:0}.drop-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.drop-zone{display:flex;position:relative;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:22px 14px;border:2px dashed #c9cfc5;border-radius:10px;background:var(--paper);cursor:pointer;text-align:center;min-width:0;transition:background .15s,border-color .15s}.drop-zone:hover,.drop-zone.dragover{background:#e8f0eb;border-color:var(--green)}.drop-zone:focus-within{outline:3px solid #619891;outline-offset:3px}.drop-zone strong{font-size:16px}.drop-zone .file-name{font-size:13px;color:var(--muted);overflow-wrap:anywhere;max-width:100%}.drop-zone .file-type{font-size:11px;color:var(--muted)}.file-input{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.upload-row{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:18px}.upload-title{display:flex;flex:1;min-width:180px;flex-direction:column;gap:7px;font-size:13px;color:var(--muted)}.upload-title input{font:inherit;width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--paper);color:var(--ink)}.upload-title input:focus-visible{outline:3px solid #619891;outline-offset:3px}.upload-submit{background:var(--green);border-color:var(--green);color:white;padding:10px 16px}.upload-submit:hover{background:#1d4f49}.upload fieldset:disabled .drop-zone{opacity:.55;cursor:default}.upload-progress{width:100%;height:8px;accent-color:var(--green);margin-top:20px}.upload-status{font-size:13px;line-height:1.7;color:var(--muted);margin:12px 0 0;overflow-wrap:anywhere}.upload-status.error,.upload-error{color:#943f31}.upload-error{font-size:13px;line-height:1.7}.upload-result{display:inline-block;margin-top:10px;color:var(--green)}.upload-log{margin-top:12px;padding-top:12px}.upload-log pre{max-height:240px;overflow:auto;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.upload [hidden]{display:none}
 .episode-progress{color:var(--green)}.episode-progress[hidden]{display:none}
+.youtube-url{flex-basis:100%;min-width:0}.source-divider{margin:24px 0 16px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:18px}
+.video-choice{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:14px;line-height:1.6;cursor:pointer}.video-choice input{width:17px;height:17px;accent-color:var(--green);flex-shrink:0}
 @media(max-width:600px){.upload{padding:18px}.drop-grid{grid-template-columns:1fr}.drop-zone{padding:18px 12px}.upload-title{flex-basis:100%}.upload-row button{flex:1}}
 </style>
 </head>
@@ -21,6 +23,16 @@ kbd{display:inline-block;font:inherit;font-size:12px;background:#fffdf9;border:1
 <p class="help library-keys"><span><kbd>↑</kbd> <kbd>↓</kbd> 選集 · <kbd>Enter</kbd> 開啟</span><button id="shortcuts" title="顯示快捷鍵清單（?）" aria-keyshortcuts="?" aria-haspopup="dialog" aria-controls="shortcut-dialog">快捷鍵 <kbd>?</kbd></button></p>
 <section class="upload" aria-labelledby="upload-heading">
  <h2 id="upload-heading">新增一集練習</h2>
+ <form id="youtube-form">
+  <fieldset id="youtube-fields" disabled>
+   <label class="upload-title youtube-url">YouTube 影片網址<input id="youtube-url" type="url" inputmode="url" maxlength="2048" placeholder="https://www.youtube.com/watch?v=…" required aria-describedby="youtube-note"></label>
+   <label class="video-choice"><input id="youtube-video" type="checkbox" aria-describedby="youtube-video-note">同時下載影片，在逐字稿旁同步播放</label>
+   <p id="youtube-video-note" class="upload-status">最高 720p MP4，最多 2 GB；下載會使用較多時間與空間。未勾選時只下載音訊。</p>
+   <div class="upload-row"><label class="upload-title">集數名稱（選填）<input id="youtube-title" type="text" maxlength="200" placeholder="預設使用影片標題"></label><button type="submit" class="upload-submit" id="youtube-submit">從 YouTube 新增</button></div>
+  </fieldset>
+ </form>
+ <p id="youtube-note" class="upload-status">貼上影片、youtu.be 或 Shorts 網址，自動取得英文字幕與音訊。優先使用影片提供的英文字幕，沒有時使用英文自動字幕；自動字幕可能有辨識錯誤。每次一支影片，最長 3 小時，匯入時需要網路。</p>
+ <p class="source-divider">或上傳自己的音檔與原稿</p>
  <p id="upload-note" class="help">拖入 MP3 與同一集的英文原稿，或點選檔案框。兩個檔案也可以一起拖入。</p>
  <form id="upload-form">
   <fieldset id="upload-fields" disabled>
@@ -114,11 +126,17 @@ document.addEventListener('keydown',event=>{
 });
 const uploadEnabled=Boolean(config.token)&&Boolean(config.upload)&&allowedOrigin;
 $('upload-fields').disabled=!uploadEnabled;
+$('youtube-fields').disabled=!uploadEnabled;
 if(uploadEnabled)initUpload();
-else $('upload-note').textContent=config.upload&&!allowedOrigin?'此網址尚未啟用上傳，請使用本機練習庫，或請管理者啟用此網站的上傳功能。':enabled?'請重新啟動練習庫服務，即可從這裡新增 MP3 與原稿。':'請透過練習庫服務開啟此頁，即可上傳 MP3 與原稿新增練習。';
+else{
+ const note=config.upload&&!allowedOrigin?'此網址尚未啟用匯入，請使用本機練習庫，或請管理者啟用此網站的匯入功能。':enabled?'請重新啟動練習庫服務，即可新增練習。':'請透過練習庫服務開啟此頁，即可用 YouTube 網址或上傳檔案新增練習。';
+ $('upload-note').textContent=note;$('youtube-note').textContent=note;
+}
 
 function initUpload(){
  let audioFile=null,transcriptFile=null,busy=false,titleEdited=false,pollTimer=null;
+ $('youtube-video').disabled=!config.upload.video_download;
+ if(!config.upload.video_download)$('youtube-video-note').textContent='更新並重啟練習庫服務後，即可啟用影片下載。';
  const local=['127.0.0.1','localhost'].includes(location.hostname);
  const audioLimit=local?config.upload.max_audio_bytes:config.upload.max_public_audio_bytes;
  const audioLimitMB=audioLimit/1024/1024;
@@ -130,7 +148,7 @@ function initUpload(){
   $('transcript-name').textContent=transcriptFile?transcriptFile.name:'拖放到這裡，或點選檔案';
   $('upload-submit').disabled=busy||!audioFile||!transcriptFile;
  }
- function setBusy(value){busy=value;$('upload-fields').disabled=value;updateFiles();}
+ function setBusy(value){busy=value;$('upload-fields').disabled=value;$('youtube-fields').disabled=value;updateFiles();}
  function chooseFiles(files){
   if(busy)return;
   let nextAudio=null,nextTranscript=null;
@@ -169,6 +187,7 @@ function initUpload(){
    $('upload-log').hidden=!job.log;$('upload-log-text').textContent=job.log||'';
    if(job.state==='completed'){
     setBusy(false);clearFiles();$('upload-progress').value=100;message(job.message);
+    $('youtube-url').value='';$('youtube-title').value='';
     $('upload-player').href=job.player;$('upload-player').hidden=false;
     try{await refreshLibrary();}catch{message(`${job.message} 請重新整理練習庫以查看新內容。`);}
    }else if(job.state==='failed'){
@@ -180,6 +199,20 @@ function initUpload(){
    }
   }catch(cause){message(`${cause.message} 請重新整理以重新連線；已開始的建置會繼續執行。`,true);}
  }
+ $('youtube-form').addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  const url=$('youtube-url').value.trim();
+  if(!url){error('請先貼上 YouTube 影片網址。');return;}
+  const input={url,title:$('youtube-title').value,download_video:$('youtube-video').checked};
+  error('');setBusy(true);$('upload-player').hidden=true;$('upload-log').hidden=true;
+  $('upload-progress').hidden=false;$('upload-progress').removeAttribute('value');message('正在提交 YouTube 網址…');
+  try{
+   const response=await fetch('/api/youtube',{method:'POST',headers:{'Content-Type':'application/json','X-Practice-Token':config.token},body:JSON.stringify(input)});
+   const result=await response.json();
+   if(!response.ok){setBusy(false);$('upload-progress').hidden=true;message(result.error||'無法匯入 YouTube 影片，請重試。',true);return;}
+   await poll(result.id);
+  }catch(cause){setBusy(false);$('upload-progress').hidden=true;message(`${cause.message} 若連線中斷，請重新整理確認是否已開始匯入。`,true);}
+ });
  $('upload-form').addEventListener('submit',event=>{
   event.preventDefault();if(busy)return;
   if(!audioFile||!transcriptFile){error('請先選擇 MP3 音檔與英文原稿。');return;}

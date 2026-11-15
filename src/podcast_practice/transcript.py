@@ -13,6 +13,54 @@ from num2words import num2words
 from .errors import PracticeError
 
 ACRONYM_WORDS = {"NATO", "NASA", "OPEC", "UNESCO", "NASDAQ", "COVID", "AIDS"}
+# Captions often capitalize ordinary speech for emphasis or speaker changes.
+# Keep common initialisms spelled out without treating every capitalized word as one.
+CAPTION_INITIALISMS = {
+    "AI",
+    "API",
+    "BBC",
+    "CEO",
+    "CFO",
+    "CIA",
+    "CNN",
+    "COO",
+    "CPU",
+    "CTO",
+    "DNA",
+    "EU",
+    "FBI",
+    "GDP",
+    "GPU",
+    "HIV",
+    "HR",
+    "HTML",
+    "HTTP",
+    "HTTPS",
+    "IMF",
+    "IOU",
+    "IQ",
+    "ITV",
+    "MBA",
+    "MFA",
+    "MP",
+    "MRI",
+    "NHS",
+    "NYC",
+    "OCD",
+    "PDF",
+    "PR",
+    "PTSD",
+    "RNA",
+    "SMS",
+    "TV",
+    "UK",
+    "UN",
+    "URL",
+    "US",
+    "USA",
+    "USB",
+    "WTO",
+}
 EVENT = re.compile(
     r"^\s*(?:\[|\()(?:music|ad|advert|applause|laughter|silence|inaudible|pause|sound)"
     r"[^\]\)]*(?:\]|\))\s*$",
@@ -67,7 +115,7 @@ def number_words(value: str, *, ordinal: bool = False) -> str:
     return num2words(integer, lang="en")
 
 
-def spoken_tokens(token: str) -> list[str]:
+def spoken_tokens(token: str, *, caption_style: bool = False) -> list[str]:
     """English normalization; the displayed word is never replaced."""
     token = unicodedata.normalize("NFKD", token.replace("’", "'").replace("‘", "'"))
     token = "".join(c for c in token if not unicodedata.combining(c))
@@ -77,7 +125,11 @@ def spoken_tokens(token: str) -> list[str]:
     if dotted:
         token = token.replace(".", "")
     acronym = re.fullmatch(r"([A-Z]{2,6})('s)?", token)
-    if acronym and acronym[1] not in ACRONYM_WORDS:
+    if (
+        acronym
+        and acronym[1] not in ACRONYM_WORDS
+        and (not caption_style or dotted or acronym[1] in CAPTION_INITIALISMS)
+    ):
         token = " ".join(acronym[1]) + (acronym[2] or "")
     token = re.sub(
         r"(?<!\w)(\d+)(?:st|nd|rd|th)(?!\w)",
@@ -228,7 +280,9 @@ def parse_subtitles(text: str) -> list[tuple[str, str, float | None, float | Non
     return rows
 
 
-def parse_transcript(path: Path, speakers: set[str] | None = None) -> Transcript:
+def parse_transcript(
+    path: Path, speakers: set[str] | None = None, *, caption_style: bool = False
+) -> Transcript:
     try:
         text = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError as exc:
@@ -244,7 +298,7 @@ def parse_transcript(path: Path, speakers: set[str] | None = None) -> Transcript
         for piece in pieces:
             words = []
             for token in piece.split():
-                spoken = spoken_tokens(token)
+                spoken = spoken_tokens(token, caption_style=caption_style)
                 words.append(DisplayWord(token, len(normalized), len(normalized) + len(spoken)))
                 normalized.extend(spoken)
             if words and any(w.norm_end > w.norm_start for w in words):

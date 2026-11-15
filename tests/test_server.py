@@ -128,3 +128,22 @@ def test_audio_ranges_handle_invalid_ranges_and_changed_resources(episode_server
     assert headers["Content-Range"] == "bytes */1024"
     for method in ["GET", "HEAD"]:
         assert request("/%2e/episode/audio.mp3", method=method)[0] == 404
+
+
+def test_video_supports_ranges_head_and_lightweight_player(episode_server):
+    folder, _, request = episode_server
+    payload = bytes(range(128)) * 16
+    (folder / "video.mp4").write_bytes(payload)
+    data = json.loads((folder / "alignment.json").read_text())
+    data["video"] = {"file": "video.mp4", "duration": 10000}
+    (folder / "alignment.json").write_text(json.dumps(data))
+    status, headers, body = request("/episode/video.mp4", {"Range": "bytes=100-199"})
+    assert status == 206 and body == payload[100:200]
+    assert headers["Content-Type"] == "video/mp4"
+    assert headers["Content-Range"] == f"bytes 100-199/{len(payload)}"
+    status, head, body = request("/episode/video.mp4", {"Range": "bytes=-32"}, method="HEAD")
+    assert status == 206 and not body and head["Content-Length"] == "32"
+    status, _, body = request("/episode/player.html")
+    assert status == 200 and b'audio.src="video.mp4"' in body
+    assert b"data:audio/mpeg;base64," not in body
+    assert request("/episode/video.mp4", {"Range": "bytes=99999-"})[0] == 416

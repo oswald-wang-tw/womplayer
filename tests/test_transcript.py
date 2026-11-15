@@ -84,3 +84,31 @@ def test_ft_notice_is_data_to_strip_not_an_instruction(tmp_path):
         "https://example.com/transcript\n\nHost\nGood morning.\n"
     )
     assert parse_transcript(path).normalized == ["good", "morning"]
+
+
+def test_caption_capitalization_preserves_display_and_initialisms(tmp_path):
+    path = tmp_path / "captions.srt"
+    text = "THIS IS WHY YOU NEVER GET TEA with the BBC in the U.S."
+    path.write_text(f"1\n00:00:00,000 --> 00:00:05,000\n{text}\n")
+    transcript = parse_transcript(path, caption_style=True)
+    assert transcript.sentences[0].text == text
+    assert transcript.normalized == [
+        "this",
+        "is",
+        "why",
+        "you",
+        "never",
+        "get",
+        "tea",
+        "with",
+        "the",
+        "b",
+        "b",
+        "c",
+        "in",
+        "the",
+        "u",
+        "s",
+    ]
+    # File uploads retain their existing acronym behavior.
+    assert spoken_tokens("BBC") == ["b", "b", "c"]

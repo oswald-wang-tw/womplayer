@@ -62,6 +62,10 @@ class Runtime:
         return self.prefix / "Scripts" / "mfa.exe" if self.windows else self.bin / "mfa"
 
     @property
+    def python(self) -> Path:
+        return self.prefix / "python.exe" if self.windows else self.bin / "python"
+
+    @property
     def ffmpeg(self) -> Path:
         return self.bin / ("ffmpeg.exe" if self.windows else "ffmpeg")
 
@@ -144,7 +148,7 @@ class Runtime:
                 handle.close()
 
     def require_ready(self) -> None:
-        if any(not path.is_file() for path in (self.mfa, self.ffmpeg, self.ffprobe)):
+        if any(not path.is_file() for path in (self.python, self.mfa, self.ffmpeg, self.ffprobe)):
             raise PracticeError("本地 MFA 尚未安裝。請先執行 uv run podcast-practice setup。")
         missing = [name for kind, name in MODELS.items() if not self.model_path(kind).exists()]
         if missing:

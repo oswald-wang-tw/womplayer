@@ -118,18 +118,33 @@ def player_html(data: dict, audio_source: str) -> str:
     """Render the same controls for a portable file or an HTTP audio resource."""
     template = files("podcast_practice").joinpath("assets/player.html").read_text(encoding="utf-8")
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    if data.get("video", {}).get("file") == "video.mp4":
+        audio_source = "video.mp4"
     source = json.dumps(audio_source).replace("</", "<\\/")
+    meta = data.get("created", "")
+    transcript_source = "原稿由使用者提供"
+    if data.get("media_source", {}).get("provider") == "youtube":
+        transcript_source = "英文字幕取自 YouTube"
+        meta += (
+            " · YouTube 英文自動字幕（可能有辨識錯誤）"
+            if data["media_source"].get("automatic_captions")
+            else " · YouTube 英文字幕"
+        )
     return (
         template.replace("__TITLE__", html.escape(data["title"]))
-        .replace("__EPISODE_META__", html.escape(data.get("created", "")))
+        .replace("__EPISODE_META__", html.escape(meta))
+        .replace("__TRANSCRIPT_SOURCE__", transcript_source)
         .replace("__ALIGNMENT_JSON__", payload)
         .replace("'__AUDIO_DATA_URI__'", source)
     )
 
 
 def render_player(data: dict, audio: Path, output: Path) -> None:
-    encoded = base64.b64encode(audio.read_bytes()).decode("ascii")
-    result = player_html(data, "data:audio/mpeg;base64," + encoded)
+    if data.get("video", {}).get("file") == "video.mp4":
+        result = player_html(data, "video.mp4")
+    else:
+        encoded = base64.b64encode(audio.read_bytes()).decode("ascii")
+        result = player_html(data, "data:audio/mpeg;base64," + encoded)
     temporary = output.with_suffix(".html.tmp")
     temporary.write_text(result, encoding="utf-8")
     temporary.replace(output)

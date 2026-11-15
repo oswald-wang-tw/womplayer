@@ -19,12 +19,17 @@ from .errors import PracticeError
 from .processes import process_group_options, stop_process
 from .runtime import Runtime
 from .transcript import parse_transcript
+from .youtube import youtube_request
 
 MAX_AUDIO_BYTES = 512 * 1024 * 1024
 MAX_PUBLIC_AUDIO_BYTES = 90 * 1024 * 1024
 MAX_TRANSCRIPT_BYTES = 5 * 1024 * 1024
 TRANSCRIPT_EXTENSIONS = {".txt", ".md", ".srt", ".vtt"}
 STAGES = {
+    "YouTube：": "讀取 YouTube 影片與字幕",
+    "YouTube 字幕：": "取得英文字幕",
+    "YouTube 音訊：": "下載 YouTube 音訊",
+    "YouTube 影片：": "準備 YouTube 影片",
     "原稿：": "讀取原稿",
     "轉換 MFA 使用的音訊": "準備音訊",
     "MFA 第一輪": "第一次語音對齊",
@@ -134,7 +139,7 @@ class Uploads:
                         self._update(
                             identifier,
                             state="failed",
-                            message="上次建置被服務中斷，請重新選取檔案後重試。",
+                            message="上次建置被服務中斷，請重新提交網址或檔案後重試。",
                         )
                 except (OSError, ValueError):
                     continue
@@ -145,6 +150,7 @@ class Uploads:
                 "max_audio_bytes": MAX_AUDIO_BYTES,
                 "max_public_audio_bytes": MAX_PUBLIC_AUDIO_BYTES,
                 "max_transcript_bytes": MAX_TRANSCRIPT_BYTES,
+                "video_download": True,
                 "job": self._active or self._last,
             }
 
@@ -174,24 +180,7 @@ class Uploads:
         metadata = upload_metadata(data, length, audio_limit)
         runtime = Runtime(self.runtime_dir)
         runtime.require_ready()
-        with self._lock:
-            if self._active or self._closing:
-                raise UploadBusy("目前正在上傳或建置另一集，請等完成後再新增。")
-            if self.root.is_symlink():
-                raise PracticeError("上傳目錄不能是符號連結。")
-            self.root.mkdir(mode=0o700, exist_ok=True)
-            identifier = secrets.token_hex(16)
-            folder = self.root / identifier
-            folder.mkdir(mode=0o700)
-            self._active = self._last = identifier
-            self._jobs[identifier] = {
-                "id": identifier,
-                "title": metadata["title"],
-                "state": "uploading",
-                "stage": "接收檔案",
-                "created": datetime.now(timezone.utc).isoformat(),
-            }
-            self._update(identifier)
+        identifier, folder = self._reserve(metadata["title"], "uploading", "接收檔案")
         try:
             audio = folder / "audio.mp3"
             transcript = folder / ("transcript" + Path(metadata["transcript_name"]).suffix.lower())
@@ -229,7 +218,75 @@ class Uploads:
             shutil.rmtree(folder)
             raise
 
-    def _build(self, identifier: str, audio: Path, transcript: Path) -> None:
+    def _reserve(self, title: str, state: str, stage: str) -> tuple[str, Path]:
+        with self._lock:
+            if self._active or self._closing:
+                raise UploadBusy("目前正在匯入或建置另一集，請等完成後再新增。")
+            if self.root.is_symlink():
+                raise PracticeError("上傳目錄不能是符號連結。")
+            self.root.mkdir(mode=0o700, exist_ok=True)
+            identifier = secrets.token_hex(16)
+            folder = self.root / identifier
+            folder.mkdir(mode=0o700)
+            self._active = self._last = identifier
+            self._jobs[identifier] = {
+                "id": identifier,
+                "title": title,
+                "state": state,
+                "stage": stage,
+                "created": datetime.now(timezone.utc).isoformat(),
+            }
+            self._update(identifier)
+            return identifier, folder
+
+    def youtube(self, data: dict) -> dict:
+        metadata = youtube_request(data)
+        Runtime(self.runtime_dir).require_ready()
+        with self._lock:
+            for previous in reversed(self._jobs.values()):
+                if previous.get("source") != "youtube" or previous.get("url") != metadata["url"]:
+                    continue
+                if previous.get("state") != "failed":
+                    break  # New imports after a completed job can refresh the online source.
+                folder = self.root / previous["id"]
+                names = ["audio.mp3", "captions.json", "source.json"]
+                if metadata["download_video"]:
+                    names.append("video.mp4")
+                if not folder.is_symlink() and all(
+                    not (folder / name).is_symlink()
+                    and (folder / name).is_file()
+                    and (folder / name).stat().st_size
+                    for name in names
+                ):
+                    metadata["reuse_source_dir"] = str(folder)
+                    break
+        identifier, _ = self._reserve(
+            metadata["title"] or "YouTube 影片", "running", "準備匯入 YouTube"
+        )
+        try:
+            self._update(identifier, source="youtube", url=metadata["url"])
+            self._thread = threading.Thread(
+                target=self._build,
+                args=(identifier,),
+                kwargs={"youtube": metadata},
+                daemon=True,
+            )
+            self._thread.start()
+            return {"id": identifier}
+        except Exception as exc:
+            self._update(identifier, state="failed", message=str(exc))
+            with self._lock:
+                self._active = None
+            raise
+
+    def _build(
+        self,
+        identifier: str,
+        audio: Path | None = None,
+        transcript: Path | None = None,
+        *,
+        youtube: dict | None = None,
+    ) -> None:
         folder = self.root / identifier
         result = folder / "result.json"
         command = [
@@ -239,18 +296,32 @@ class Uploads:
             "podcast_practice.cli",
             "--runtime-dir",
             str(self.runtime_dir),
-            "build",
-            str(audio),
-            str(transcript),
-            "--title",
-            self._jobs[identifier]["title"],
+        ]
+        if youtube is not None:
+            command += ["youtube", youtube["url"], "--source-dir", str(folder)]
+            if youtube["download_video"]:
+                command.append("--download-video")
+            if youtube.get("reuse_source_dir"):
+                command += ["--reuse-source-dir", youtube["reuse_source_dir"]]
+            if youtube["title"]:
+                command += ["--title", youtube["title"]]
+        else:
+            command += [
+                "build",
+                str(audio),
+                str(transcript),
+                "--offline",
+                "--title",
+                self._jobs[identifier]["title"],
+            ]
+        command += [
             "--library",
             str(self.library),
-            "--offline",
             "--result-json",
             str(result),
         ]
         process = None
+        last_error = None
         try:
             with (folder / "build.log").open("w", encoding="utf-8") as log:
                 process = subprocess.Popen(
@@ -273,6 +344,8 @@ class Uploads:
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
+                    if line.startswith("錯誤："):
+                        last_error = line.strip().removeprefix("錯誤：")
                     for marker, stage in STAGES.items():
                         if marker in line:
                             self._update(identifier, stage=stage)
@@ -282,7 +355,7 @@ class Uploads:
                 raise PracticeError(
                     "建置隨服務停止而中斷，請重試。"
                     if self._closing
-                    else "建置失敗，請查看建置紀錄，確認模型已安裝且音檔與原稿為同一集。"
+                    else last_error or "建置失敗，請查看建置紀錄後重試。"
                 )
             output = Path(json.loads(result.read_text(encoding="utf-8"))["directory"])
             if output.is_symlink() or output.resolve().parent != self.library:
@@ -306,12 +379,18 @@ class Uploads:
             alignment = json.loads((output / "alignment.json").read_text(encoding="utf-8"))
             if not alignment.get("sentences"):
                 raise PracticeError("建置結果沒有可練習的句子。")
+            if youtube and youtube["download_video"]:
+                video = output / "video.mp4"
+                if not alignment.get("video") or not video.is_file() or not video.stat().st_size:
+                    raise PracticeError("影片輸出不完整，請查看建置紀錄後重試。")
+            title = alignment.get("title") or self._jobs[identifier]["title"]
             self._update(
                 identifier,
+                title=title,
                 state="completed",
                 stage="建置完成",
                 player=f"{quote(output.name)}/player.html",
-                message=f"已新增「{self._jobs[identifier]['title']}」。",
+                message=f"已新增「{title}」。",
             )
         except Exception as exc:
             self._update(identifier, state="failed", message=str(exc))

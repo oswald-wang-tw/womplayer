@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import secrets
 import sys
 import webbrowser
 from pathlib import Path
@@ -17,6 +18,13 @@ from .pipeline import BuildOptions, build
 from .render import render_player, update_library
 from .runtime import MODELS, Runtime
 from .server import library_server
+from .youtube import (
+    CachedDownloadError,
+    attach_video,
+    download_youtube,
+    reuse_youtube_source,
+    youtube_url,
+)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -52,6 +60,15 @@ def parser() -> argparse.ArgumentParser:
     )
     create.add_argument("--open", action="store_true", help="完成後用預設瀏覽器開啟")
     create.add_argument("--result-json", type=Path, help=argparse.SUPPRESS)
+    youtube = sub.add_parser("youtube", help="從 YouTube 網址匯入英文字幕與音訊，建立練習")
+    youtube.add_argument("url", help="單支 YouTube 影片網址")
+    youtube.add_argument("--title", help="集數名稱；預設使用影片標題")
+    youtube.add_argument("--library", type=Path, default=Path("library"))
+    youtube.add_argument("--open", action="store_true", help="完成後開啟播放器")
+    youtube.add_argument("--download-video", action="store_true", help="同時下載最高 720p MP4 影片")
+    youtube.add_argument("--source-dir", type=Path, help=argparse.SUPPRESS)
+    youtube.add_argument("--reuse-source-dir", type=Path, help=argparse.SUPPRESS)
+    youtube.add_argument("--result-json", type=Path, help=argparse.SUPPRESS)
     serve = sub.add_parser("serve", help="開啟本機練習庫，瀏覽每天的內容")
     serve.add_argument("--library", type=Path, default=Path("library"))
     serve.add_argument("--port", type=int, default=8766)
@@ -157,6 +174,45 @@ def main(argv: list[str] | None = None) -> int:
                             allow_low_confidence=args.allow_low_confidence,
                         ),
                     )
+                    if args.result_json:
+                        temporary = args.result_json.with_suffix(".tmp")
+                        temporary.write_text(
+                            json.dumps({"directory": str(destination)}), encoding="utf-8"
+                        )
+                        temporary.replace(args.result_json)
+                    if args.open:
+                        webbrowser.open((destination / "player.html").as_uri())
+                elif args.command == "youtube":
+                    url = youtube_url(args.url)
+                    runtime.require_ready()
+                    folder = args.source_dir or (args.library / ".uploads" / secrets.token_hex(16))
+                    cached = None
+                    if args.reuse_source_dir:
+                        try:
+                            cached = reuse_youtube_source(
+                                runtime,
+                                url,
+                                args.reuse_source_dir,
+                                include_video=args.download_video,
+                            )
+                        except CachedDownloadError:
+                            print("YouTube：既有下載未通過檢查，重新取得來源…", flush=True)
+                    audio, transcript, source = cached or download_youtube(
+                        runtime, url, folder.resolve(), include_video=args.download_video
+                    )
+                    destination = build(
+                        runtime,
+                        BuildOptions(
+                            audio=audio,
+                            transcript=transcript,
+                            title=args.title or source["title"],
+                            library=args.library,
+                            offline=True,
+                            media_source=source,
+                        ),
+                    )
+                    if args.download_video:
+                        attach_video(runtime, destination, audio.parent / "video.mp4")
                     if args.result_json:
                         temporary = args.result_json.with_suffix(".tmp")
                         temporary.write_text(

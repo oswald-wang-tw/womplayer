@@ -83,7 +83,7 @@ class LibraryHandler(SimpleHTTPRequestHandler):
 
     def serve_episode(self, path: str, *, head_only: bool = False) -> bool:
         parts = path.strip("/").split("/")
-        if len(parts) != 2 or parts[1] not in {"player.html", "audio.mp3"}:
+        if len(parts) != 2 or parts[1] not in {"player.html", "audio.mp3", "video.mp4"}:
             return False
         folder = (self.root / parts[0]).resolve()
         if folder.parent != self.root or not (folder / parts[1]).is_file():
@@ -102,7 +102,7 @@ class LibraryHandler(SimpleHTTPRequestHandler):
             if not head_only:
                 self.wfile.write(payload)
             return True
-        audio = folder / "audio.mp3"
+        audio = folder / parts[1]
         with audio.open("rb") as source:
             stat = audio.stat()
             size = stat.st_size
@@ -122,7 +122,9 @@ class LibraryHandler(SimpleHTTPRequestHandler):
             start, end = bounds if bounds else (0, size - 1)
             length = max(0, end - start + 1)
             self.send_response(206 if bounds else 200)
-            self.send_header("Content-Type", "audio/mpeg")
+            self.send_header(
+                "Content-Type", "video/mp4" if parts[1] == "video.mp4" else "audio/mpeg"
+            )
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(length))
             self.send_header("Last-Modified", modified)
@@ -157,13 +159,23 @@ class LibraryHandler(SimpleHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_POST(self):
-        if self.path not in {"/api/delete", "/api/restore", "/api/purge", "/api/upload"}:
+        if self.path not in {
+            "/api/delete",
+            "/api/restore",
+            "/api/purge",
+            "/api/upload",
+            "/api/youtube",
+        }:
             self.reply_json(404, {"error": "找不到此操作。"})
             return
         content_type = (
             "application/octet-stream" if self.path == "/api/upload" else "application/json"
         )
-        origins = self.server.upload_origins if self.path == "/api/upload" else self.server.origins
+        origins = (
+            self.server.upload_origins
+            if self.path in {"/api/upload", "/api/youtube"}
+            else self.server.origins
+        )
         if (
             not self.valid_token()
             or self.headers.get("Origin") not in origins
@@ -193,6 +205,9 @@ class LibraryHandler(SimpleHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise PracticeError("請求內容必須是 JSON 物件。")
+            if self.path == "/api/youtube":
+                self.reply_json(202, self.uploads.youtube(body))
+                return
             if self.path == "/api/delete":
                 result = delete_episode(self.root, body.get("episode"))
             elif self.path == "/api/restore":

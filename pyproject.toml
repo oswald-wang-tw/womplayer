@@ -9,6 +9,7 @@ dependencies = [
   "filelock>=3.16,<5",
   "num2words==0.5.14",
   "praatio==6.2.2",
+  "yt-dlp[default]>=2025.10.22,<2027",
 ]
 
 [project.scripts]

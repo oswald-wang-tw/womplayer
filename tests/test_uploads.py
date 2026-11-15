@@ -43,7 +43,7 @@ def ready_runtime(monkeypatch):
 
 @pytest.fixture
 def fake_build(monkeypatch):
-    options = {"code": 0, "incomplete": False, "gate": None}
+    options = {"code": 0, "incomplete": False, "gate": None, "incomplete_video": False}
     commands = []
 
     class Process:
@@ -82,9 +82,16 @@ def fake_build(monkeypatch):
                         "created": "2026-10-05",
                         "duration": 1,
                         "sentences": [{"text": "Hello, world."}],
+                        **(
+                            {"video": {"file": "video.mp4"}}
+                            if "--download-video" in command and not options["incomplete_video"]
+                            else {}
+                        ),
                     }
                 )
             )
+            if "--download-video" in command and not options["incomplete_video"]:
+                (folder / "video.mp4").write_bytes(b"MP4 output")
             result = Path(command[command.index("--result-json") + 1])
             result.write_text(json.dumps({"directory": str(folder)}))
             update_library(root)
@@ -300,6 +307,106 @@ def test_result_json_is_written_only_after_cli_build_success(tmp_path, monkeypat
     assert not result.exists()
 
 
+def test_youtube_endpoint_build_status_and_shared_busy_slot(running_server, fake_build):
+    server, request, headers, _ = running_server
+    headers = {**headers, "Content-Type": "application/json"}
+    gate = fake_build[0]["gate"] = threading.Event()
+    body = json.dumps({"url": "https://youtu.be/jNQXAC9IVRw"})
+    try:
+        status, payload = request("POST", "/api/youtube", body, headers)
+        assert status == 202
+        identifier = json.loads(payload)["id"]
+        assert request("POST", "/api/youtube", body, headers)[0] == 409
+        upload_headers = {**headers, "Content-Type": "application/octet-stream"}
+        assert request("POST", "/api/upload", b"MP3 bytesHello, world.", upload_headers)[0] == 409
+    finally:
+        gate.set()
+        server.uploads._thread.join(timeout=5)
+    job = server.uploads.status(identifier)
+    assert job["state"] == "completed"
+    assert job["title"] == "New episode"
+    command = fake_build[1][0][0]
+    assert command[command.index("youtube") + 1] == "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    assert "--source-dir" in command and "--title" not in command
+    for flag in ["--no-asr", "--force", "--allow-low-confidence"]:
+        assert flag not in command
+
+
+def test_youtube_endpoint_requires_authorized_origin_token_and_valid_url(running_server):
+    server, request, headers, _ = running_server
+    headers = {**headers, "Content-Type": "application/json"}
+    body = json.dumps({"url": "https://youtu.be/jNQXAC9IVRw"})
+    for changes in [{"Origin": "https://evil.example"}, {"X-Practice-Token": "wrong"}]:
+        assert request("POST", "/api/youtube", body, {**headers, **changes})[0] == 403
+    for data in [{"url": "http://127.0.0.1/"}, {"url": "https://youtube.com/playlist?list=x"}]:
+        assert request("POST", "/api/youtube", json.dumps(data), headers)[0] == 400
+    assert not server.uploads.root.exists()
+
+
+def test_youtube_failure_displays_reason_and_allows_retry(running_server, fake_build):
+    server, request, headers, _ = running_server
+    fake_build[0]["code"] = 2
+    headers = {**headers, "Content-Type": "application/json"}
+    body = json.dumps({"url": "https://youtu.be/jNQXAC9IVRw"})
+    status, payload = request("POST", "/api/youtube", body, headers)
+    assert status == 202
+    identifier = json.loads(payload)["id"]
+    server.uploads._thread.join(timeout=5)
+
+    job = server.uploads.status(identifier)
+    assert job["state"] == "failed" and "不是有效的 MP3" in job["message"]
+    assert "player" not in job and server.uploads._active is None
+    fake_build[0]["code"] = 0
+    assert request("POST", "/api/youtube", body, headers)[0] == 202
+    server.uploads._thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("incomplete", [False, True])
+def test_youtube_video_flag_and_required_output(running_server, fake_build, incomplete):
+    server, request, headers, _ = running_server
+    fake_build[0]["incomplete_video"] = incomplete
+    headers = {**headers, "Content-Type": "application/json"}
+    status, payload = request(
+        "POST",
+        "/api/youtube",
+        json.dumps({"url": "https://youtu.be/jNQXAC9IVRw", "download_video": True}),
+        headers,
+    )
+    assert status == 202
+    server.uploads._thread.join(timeout=5)
+    job = server.uploads.status(json.loads(payload)["id"])
+    assert "--download-video" in fake_build[1][0][0]
+    assert job["state"] == ("failed" if incomplete else "completed")
+    if incomplete:
+        assert "影片輸出不完整" in job["message"]
+
+
+@pytest.mark.parametrize("state, reuse", [("failed", True), ("completed", False)])
+def test_youtube_reuses_failed_downloads_and_refreshes_completed_sources(
+    running_server, fake_build, state, reuse
+):
+    server, request, headers, _ = running_server
+    identifier = "a" * 32
+    folder = server.uploads.root / identifier
+    folder.mkdir(parents=True)
+    for name in ["audio.mp3", "captions.json", "source.json", "video.mp4"]:
+        (folder / name).write_bytes(b"saved input")
+    server.uploads._jobs[identifier] = {
+        "id": identifier,
+        "state": state,
+        "source": "youtube",
+        "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    }
+    headers = {**headers, "Content-Type": "application/json"}
+    body = json.dumps({"url": "https://youtu.be/jNQXAC9IVRw", "download_video": True})
+    assert request("POST", "/api/youtube", body, headers)[0] == 202
+    server.uploads._thread.join(timeout=5)
+    command = fake_build[1][0][0]
+    assert ("--reuse-source-dir" in command) == reuse
+    if reuse:
+        assert command[command.index("--reuse-source-dir") + 1] == str(folder)
+
+
 @pytest.mark.parametrize(
     "origin",
     [
@@ -365,6 +472,16 @@ def test_https_reverse_proxy_origin_requires_explicit_configuration(
         assert response.status == 400
         assert "90 MB" in json.loads(response.read())["error"]
         assert len(list(server.uploads.root.iterdir())) == 1
+        connection.request(
+            "POST",
+            "/api/youtube",
+            json.dumps({"url": "https://youtu.be/jNQXAC9IVRw"}),
+            {**headers, "Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        assert response.status == 202
+        response.read()
+        server.uploads._thread.join(timeout=5)
     finally:
         connection.close()
         server.shutdown()

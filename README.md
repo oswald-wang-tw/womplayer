@@ -5,10 +5,12 @@ Turn English podcasts and their transcripts into offline listening practice with
 word highlighting, slower playback, sentence looping, pausing at sentence boundaries,
 transcript hiding, search, and keyboard shortcuts.
 
-Each episode produces a portable `player.html` with embedded audio, SRT/VTT subtitles,
-word timestamps in JSON, and a TextGrid. All audio analysis runs locally, with no SaaS,
-API keys, or subscriptions. Network access is needed for the initial setup and model
-downloads.
+Each audio-only episode produces a portable `player.html` with embedded audio,
+SRT/VTT subtitles, word timestamps in JSON, and a TextGrid. Optional video players
+use a `video.mp4` file beside the HTML; keep both files together for offline use.
+All audio analysis runs locally, with no SaaS,
+API keys, or subscriptions. Network access is needed for the initial setup, model
+downloads, and importing videos from YouTube. Finished players work offline.
 
 ## Initial setup
 
@@ -135,6 +137,77 @@ then click the add button.
 Browser uploads require the local server. Opening `index.html` through `file://`
 disables uploading. Restart a server started before this feature was added to
 enable its new upload endpoints.
+
+## Add practice from a YouTube URL
+
+Update dependencies with `uv sync --locked`, restart `uv run podcast-practice serve
+--open`, and paste a video link into **YouTube 影片網址** at the top of the library.
+The title is optional; leaving it empty uses the video's title. Click **從 YouTube
+新增** to import the captions and audio and build the practice player in the
+background. Progress and logs use the same area as file uploads, and reloading
+reconnects to the current job. Only one upload/import/build runs at a time.
+
+Select **同時下載影片，在逐字稿旁同步播放** to also download a video, up to 720p
+and 2 GiB. This is unchecked by default. The finished player shows video beside
+the transcript on desktop and above it on smaller screens. Video sound, word
+highlighting, transcript/time jumps, sentence looping, sentence-end pauses,
+playback speed and saved progress share the same video playback timeline. The
+video's native controls also update transcript highlighting and playback progress.
+Downloading video uses additional time and disk space; inputs and finished outputs
+each retain a copy. Existing audio-only imports continue to work as before.
+
+You can also import from the command line:
+
+```sh
+uv run podcast-practice youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --open
+
+# Include an MP4 video
+uv run podcast-practice youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --download-video --open
+```
+
+- Supports single-video `youtube.com/watch`, `youtu.be`, Shorts, embed and completed
+  live-video links. A playlist parameter on a video link is ignored; playlist-only
+  links are rejected. Start-time parameters are ignored: the full video is imported.
+- Prefers uploaded English captions, then English automatic captions. Automatic
+  translations from other languages are excluded. Automatic captions are labeled
+  in the player because they can contain recognition errors.
+- Requires English speech, publicly accessible audio and English captions. Missing captions,
+  access restrictions and failed downloads produce an error; no finished practice
+  is reported. Active/upcoming livestreams and videos longer than 3 hours are
+  rejected. Downloaded audio is limited to 512 MiB, captions to 5 MiB.
+- Caption timing is retained as the normal SRT input to MFA. Overlapping roll-up
+  captions are cleaned to avoid repeated text. Speaker arrows and non-speech
+  markers such as `[laughter]`, `[laughs]` and `[clears throat]` are excluded from spoken text.
+  When overlapping captions leave an extremely short speech fragment, it is
+  joined to nearby captions within their original time bounds. All spoken words
+  remain in the transcript; isolated fragments that cannot be joined produce a
+  timestamped error instead of an unusable alignment window.
+  Uppercase caption words retain their displayed spelling while ordinary words
+  are aligned as speech rather than spelled out letter by letter; common
+  initialisms such as BBC and U.S. retain their spelling pronunciation.
+  Final word timing comes from the
+  existing local MFA pipeline, with its review warnings preserved. Speech that
+  has no source caption is not supplied with invented text.
+- Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp), installed by `uv sync --locked`,
+  and the existing runtime's ffmpeg. YouTube also needs an available **Node.js 22+
+  or Deno 2.3+** on the server's `PATH`; both are detected automatically. The EJS
+  scripts are included in the Python dependencies. See the
+  [official JavaScript runtime guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+- Source captions, converted SRT, audio and source metadata are retained under
+  `library/.uploads/`. This directory is not served over HTTP. The finished
+  `alignment.json` records the video URL, title, channel and caption type.
+- `--title` and `--library` work with the `youtube` command. Importing needs network
+  access, while model inference and the finished player remain local/offline.
+- Adding video to identical inputs reuses the completed MFA alignment and keeps
+  the existing audio identity used for browser playback progress. An episode that
+  already has a video retains it when importing the same inputs without the flag.
+  For a video episode, copy `player.html` and `video.mp4` together for offline use.
+- Retrying a failed YouTube import reuses complete saved audio, captions and video
+  instead of downloading them again. Captions are regenerated using the current
+  converter, and the original downloads/transcript/logs are retained. Invalid or
+  missing downloads are fetched again. A new import after a completed job can
+  refresh the online source. MFA errors identify the failed segment, its time
+  range and text, with full details in `mfa.log` and `alignment-failure.json`.
 
 If you already serve the library through a trusted reverse proxy, explicitly allow
 that site's origin when starting the local server:
