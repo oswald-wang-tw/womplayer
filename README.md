@@ -22,6 +22,24 @@ All audio analysis runs locally, with no SaaS,
 API keys, or subscriptions. Network access is needed for the initial setup, model
 downloads, and importing videos from YouTube. Finished players work offline.
 
+## Screenshots
+
+The screenshots below show the Traditional Chinese interface.
+
+### Listening and shadowing
+
+Video and transcript share one timeline, with word highlighting, sentence looping,
+and playback speed controls.
+
+![Womplayer practice player with synchronized video and transcript, a highlighted word, sentence looping, and playback speed controls](docs/screenshots/womplayer-player.png)
+
+### Library and importing
+
+Import a YouTube video or upload an audio file and its transcript, then browse
+your practice episodes in one place.
+
+![Womplayer library with YouTube importing, audio and transcript uploads, and a list of practice episodes](docs/screenshots/womplayer-library.png)
+
 ## Upgrading from Podcast Practice
 
 Womplayer is the new name for Podcast Practice. In an existing checkout, run
