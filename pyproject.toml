@@ -1,7 +1,7 @@
 [project]
-name = "podcast-practice"
+name = "womplayer"
 version = "0.1.0"
-description = "Local podcast listening practice with Montreal Forced Aligner"
+description = "Offline English listening and shadowing practice with Montreal Forced Aligner"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
@@ -13,7 +13,11 @@ dependencies = [
 ]
 
 [project.scripts]
+womplayer = "podcast_practice.cli:main"
 podcast-practice = "podcast_practice.cli:main"
+
+[project.urls]
+Repository = "https://github.com/oswald-wang-tw/womplayer"
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]

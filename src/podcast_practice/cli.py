@@ -1,4 +1,4 @@
-"""uv run podcast-practice setup / build / serve / doctor / render."""
+"""uv run womplayer setup / build / serve / doctor / render."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from .youtube import (
 
 
 def parser() -> argparse.ArgumentParser:
-    command = argparse.ArgumentParser(description="本機 MFA podcast 英文聽力練習工具")
+    command = argparse.ArgumentParser(description="Womplayer — 本機英語聆聽與跟讀練習工具")
     command.add_argument("--version", action="version", version=__version__)
     command.add_argument(
         "--runtime-dir",

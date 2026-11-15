@@ -1,6 +1,16 @@
-# Podcast Practice
+<p align="center">
+  <img src="src/podcast_practice/assets/womplayer-logo.png" width="180" height="180" alt="Womplayer mascot: a wombat wearing headphones">
+</p>
 
-Turn English podcasts and their transcripts into offline listening practice with
+# Womplayer
+
+**Your listening and shadowing companion.**
+
+Named after the wombat, Womplayer helps you listen closely, repeat a sentence,
+and shadow along at your own pace.
+
+Turn English podcasts, videos, and their transcripts into offline listening and
+shadowing practice with
 **uv + Montreal Forced Aligner (MFA)**. The player supports click-to-seek sentences,
 word highlighting, slower playback, sentence looping, pausing at sentence boundaries,
 transcript hiding, search, and keyboard shortcuts.
@@ -11,6 +21,20 @@ use a `video.mp4` file beside the HTML; keep both files together for offline use
 All audio analysis runs locally, with no SaaS,
 API keys, or subscriptions. Network access is needed for the initial setup, model
 downloads, and importing videos from YouTube. Finished players work offline.
+
+## Upgrading from Podcast Practice
+
+Womplayer is the new name for Podcast Practice. In an existing checkout, run
+`uv sync --locked` and start using `uv run womplayer`; the old `podcast-practice`
+command remains available for existing scripts and scheduled jobs. Your checkout
+folder can keep its current name.
+
+The existing `library/`, `.runtime/`, episode identifiers, and browser playback
+progress are reused. Restart the library server to load the new branding; pages
+served over HTTP use the current templates. To update an older exported offline
+player, run `uv run womplayer render library/episode-name-xxxxxxxx`.
+
+The Python import namespace remains `podcast_practice` for compatibility.
 
 ## Initial setup
 
@@ -24,11 +48,11 @@ incompatible packages.
 2. Clone the repository and set up the local runtime:
 
 ```sh
-git clone https://github.com/oswald-wang-tw/podcast-practice.git
-cd podcast-practice
+git clone https://github.com/oswald-wang-tw/womplayer.git
+cd womplayer
 uv sync --locked
-uv run podcast-practice setup
-uv run podcast-practice doctor
+uv run womplayer setup
+uv run womplayer doctor
 ```
 
 On Windows, run the same setup commands in **PowerShell**. Automatic setup uses
@@ -38,8 +62,8 @@ WSL and an activated Conda shell are not required. Paths with spaces or
 Chinese characters are supported; quote paths containing spaces:
 
 ```powershell
-uv run podcast-practice build "C:\Podcasts\today.mp3" "C:\Podcasts\today.txt" --title "Today's episode" --offline --open
-uv run podcast-practice serve --open
+uv run womplayer build "C:\Podcasts\today.mp3" "C:\Podcasts\today.txt" --title "Today's episode" --offline --open
+uv run womplayer serve --open
 ```
 
 The multi-line `sh` examples below use Unix shell continuations (`\`). In
@@ -54,10 +78,10 @@ DLL, install the x64 runtime linked in the
 You can also transfer an exported Git bundle to another computer:
 
 ```sh
-git clone /path/to/podcast-practice.bundle podcast-practice
-cd podcast-practice
+git clone /path/to/womplayer.bundle womplayer
+cd womplayer
 uv sync --locked
-uv run podcast-practice setup
+uv run womplayer setup
 ```
 
 **You do not need to install Python, Conda, or ffmpeg separately.** uv manages Python
@@ -79,14 +103,14 @@ times depend on your connection and computer; subsequent runs reuse the models.
 Save an audio file and its UTF-8 transcript, then run:
 
 ```sh
-uv run podcast-practice build /path/to/today.mp3 /path/to/today.txt \
+uv run womplayer build /path/to/today.mp3 /path/to/today.txt \
   --title "Today's episode" --offline --open
 ```
 
 Use a different pair of files for the next episode, without changing the code:
 
 ```sh
-uv run podcast-practice build /path/to/another.m4a /path/to/another.txt \
+uv run womplayer build /path/to/another.m4a /path/to/another.txt \
   --title "Another podcast" --offline --open
 ```
 
@@ -103,7 +127,7 @@ uv run podcast-practice build /path/to/another.m4a /path/to/another.txt \
 Browse your practice library:
 
 ```sh
-uv run podcast-practice serve --open
+uv run womplayer serve --open
 ```
 
 The server listens only on `127.0.0.1:8766`. Press Ctrl+C to stop it. Individual
@@ -113,7 +137,7 @@ to use the same library.
 
 ## Add episodes from the browser
 
-Run `uv run podcast-practice serve --open` and use the **Add an episode** area at
+Run `uv run womplayer serve --open` and use the **Add an episode** area at
 the top of the library. Drag an MP3 and its English transcript onto either file
 box, or click the boxes to choose files. You can drop both files together or add
 them one at a time. Enter an episode title, or use the audio filename as the title,
@@ -140,7 +164,7 @@ enable its new upload endpoints.
 
 ## Add practice from a YouTube URL
 
-Update dependencies with `uv sync --locked`, restart `uv run podcast-practice serve
+Update dependencies with `uv sync --locked`, restart `uv run womplayer serve
 --open`, and paste a video link into **YouTube 影片網址** at the top of the library.
 The title is optional; leaving it empty uses the video's title. Click **從 YouTube
 新增** to import the captions and audio and build the practice player in the
@@ -159,10 +183,10 @@ each retain a copy. Existing audio-only imports continue to work as before.
 You can also import from the command line:
 
 ```sh
-uv run podcast-practice youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --open
+uv run womplayer youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --open
 
 # Include an MP4 video
-uv run podcast-practice youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --download-video --open
+uv run womplayer youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --download-video --open
 ```
 
 - Supports single-video `youtube.com/watch`, `youtu.be`, Shorts, embed and completed
@@ -213,7 +237,7 @@ If you already serve the library through a trusted reverse proxy, explicitly all
 that site's origin when starting the local server:
 
 ```sh
-uv run podcast-practice serve --public-origin https://podcast.oswaldwang.com
+uv run womplayer serve --public-origin https://podcast.oswaldwang.com
 ```
 
 The server still binds to loopback. Uploads require the page's request token and
@@ -260,7 +284,7 @@ only once; navigation, seeking, and speed shortcuts can repeat.
 Update an existing episode's player without rerunning alignment:
 
 ```sh
-uv run podcast-practice render library/episode-name-xxxxxxxx
+uv run womplayer render library/episode-name-xxxxxxxx
 ```
 
 The library server renders a lightweight version at the same `player.html` URL,
@@ -306,9 +330,9 @@ caches. Items in the trash still use disk space. Delete and restore buttons are
 disabled when opening `index.html` through `file://`; use `serve` or the CLI:
 
 ```sh
-uv run podcast-practice delete episode-name-xxxxxxxx
-uv run podcast-practice trash
-uv run podcast-practice restore <trash-id>
+uv run womplayer delete episode-name-xxxxxxxx
+uv run womplayer trash
+uv run womplayer restore <trash-id>
 ```
 
 Each item in the trash also has a permanent-delete button. Its confirmation dialog
@@ -320,7 +344,7 @@ from the trash. Original inputs, shared models, and processing caches under
 The CLI requires an explicit `--yes` to delete an item permanently:
 
 ```sh
-uv run podcast-practice purge <trash-id> --yes
+uv run womplayer purge <trash-id> --yes
 ```
 
 Use `--library /path/to/library` for a custom library. Restoration refuses to
@@ -423,7 +447,7 @@ edited wording, and unusual pronunciations may require manual adjustment.
 Choose a smaller, faster coarse-alignment model:
 
 ```sh
-uv run podcast-practice setup --asr-model tiny.en
+uv run womplayer setup --asr-model tiny.en
 ```
 
 `build` uses the model selected during setup by default. Use `--asr-model small.en`
@@ -433,7 +457,7 @@ Reuse an existing MFA environment and model directories without downloading them
 again. These paths are stored locally in `.runtime/config.json`:
 
 ```sh
-uv run podcast-practice setup --mfa-prefix /path/to/mfa-env \
+uv run womplayer setup --mfa-prefix /path/to/mfa-env \
   --model-dir /path/to/MFA --asr-cache /path/to/asr-cache
 ```
 
@@ -441,7 +465,7 @@ On Windows, `--mfa-prefix` must point to the environment directory containing
 `Scripts\mfa.exe`, `Library\bin\ffmpeg.exe`, and `Library\bin\ffprobe.exe`:
 
 ```powershell
-uv run podcast-practice setup --mfa-prefix "C:\Tools\mfa-env" --model-dir "C:\Models\MFA" --asr-cache "C:\Models\asr-cache"
+uv run womplayer setup --mfa-prefix "C:\Tools\mfa-env" --model-dir "C:\Models\MFA" --asr-cache "C:\Models\asr-cache"
 ```
 
 Use `build ... --no-asr` to skip coarse recognition. Check music and trailing audio
@@ -452,7 +476,7 @@ To correct a sentence, copy the episode's `windows.json`, edit its `begin` and `
 values in seconds, and run:
 
 ```sh
-uv run podcast-practice build /path/to/today.mp3 /path/to/today.txt \
+uv run womplayer build /path/to/today.mp3 /path/to/today.txt \
   --title "Today's episode" --windows /path/to/windows.json --offline
 ```
 
@@ -463,7 +487,7 @@ within the audio duration and must not overlap neighboring sentences.
 Refresh the player without rerunning alignment:
 
 ```sh
-uv run podcast-practice render library/episode-name-xxxxxxxx
+uv run womplayer render library/episode-name-xxxxxxxx
 ```
 
 `--force` allows output replacement while preserving computation caches for the same

@@ -9,6 +9,7 @@ import json
 import math
 import shutil
 import textwrap
+from functools import cache
 from importlib.resources import files
 from pathlib import Path
 from urllib.parse import quote
@@ -16,6 +17,13 @@ from urllib.parse import quote
 from praatio import textgrid
 
 from .library import list_trash
+
+
+@cache
+def logo_data_uri() -> str:
+    """Keep the brand image inside portable players and offline library pages."""
+    logo = files("podcast_practice").joinpath("assets/womplayer-logo.png").read_bytes()
+    return "data:image/png;base64," + base64.b64encode(logo).decode("ascii")
 
 
 def timestamp(seconds: float, *, comma: bool = False) -> str:
@@ -134,6 +142,7 @@ def player_html(data: dict, audio_source: str) -> str:
         template.replace("__TITLE__", html.escape(data["title"]))
         .replace("__EPISODE_META__", html.escape(meta))
         .replace("__TRANSCRIPT_SOURCE__", transcript_source)
+        .replace("__LOGO_DATA_URI__", logo_data_uri())
         .replace("__ALIGNMENT_JSON__", payload)
         .replace("'__AUDIO_DATA_URI__'", source)
     )
@@ -197,6 +206,7 @@ def library_html(root: Path, token: str | None = None, upload: dict | None = Non
         .replace("__TRASH_ITEMS__", trash_items or '<p class="empty">回收區是空的。</p>')
         .replace("__TRASH_COUNT__", str(len(recycled)))
         .replace("__LIBRARY_CONFIG__", config)
+        .replace("__LOGO_DATA_URI__", logo_data_uri())
     )
 
 

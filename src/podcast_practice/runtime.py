@@ -142,14 +142,14 @@ class Runtime:
                 hint = f"，詳細記錄：{log}" if log else ""
                 raise PracticeError(f"{Path(command[0]).name} 執行失敗（exit {code}）{hint}")
         except FileNotFoundError as exc:
-            raise PracticeError("找不到本地 MFA/ffmpeg，請先執行 podcast-practice setup。") from exc
+            raise PracticeError("找不到本地 MFA/ffmpeg，請先執行 womplayer setup。") from exc
         finally:
             if handle:
                 handle.close()
 
     def require_ready(self) -> None:
         if any(not path.is_file() for path in (self.python, self.mfa, self.ffmpeg, self.ffprobe)):
-            raise PracticeError("本地 MFA 尚未安裝。請先執行 uv run podcast-practice setup。")
+            raise PracticeError("本地 MFA 尚未安裝。請先執行 uv run womplayer setup。")
         missing = [name for kind, name in MODELS.items() if not self.model_path(kind).exists()]
         if missing:
             raise PracticeError(f"缺少模型：{', '.join(missing)}。請重新執行 setup。")
@@ -186,7 +186,7 @@ class Runtime:
                 url = f"https://micro.mamba.pm/api/micromamba/{subdir}/{MICROMAMBA_VERSION}"
                 archive = self.root / "micromamba.tar.bz2"
                 print(f"下載 micromamba {MICROMAMBA_VERSION}（{subdir}）…", flush=True)
-                request = urllib.request.Request(url, headers={"User-Agent": "podcast-practice"})
+                request = urllib.request.Request(url, headers={"User-Agent": "womplayer"})
                 temporary = executable.with_suffix(executable.suffix + ".tmp")
                 try:
                     with urllib.request.urlopen(request, timeout=60) as response:
