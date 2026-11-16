@@ -337,7 +337,8 @@ off-screen sentence contents skip layout in browsers supporting `content-visibil
 
 ## Browser playback progress
 
-Each episode automatically saves its last playback position in this browser.
+Each episode quietly saves its last playback position in this browser, without a
+changing save-status message or timestamp.
 Reopening the player restores that position after the audio metadata loads and
 leaves playback paused; press Play to continue. The library shows the last position
 and its percentage of the episode, or that playback reached the end. **從頭開始**

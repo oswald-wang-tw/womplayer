@@ -53,7 +53,7 @@ kbd{display:inline-block;font:inherit;font-size:12px;background:var(--card);bord
   <input class="timeline" id="seek" type="range" min="0" max="1" step="0.01" value="0" aria-label="播放進度">
   <details id="practice-settings" class="practice-settings" open><summary>跟讀設定</summary>
   <div class="options"><label><input id="loop" type="checkbox">循環這一句</label><label>間隔 <select id="gap"><option value="0">0 秒</option><option value="1" selected>1 秒</option><option value="2">2 秒</option><option value="3">3 秒</option></select></label><label><input id="pauseEnd" type="checkbox">句尾暫停</label><label><input id="follow" type="checkbox" checked>自動跟隨</label><button id="hide" aria-pressed="false">隱藏原稿</button><button id="reveal" aria-pressed="false" hidden>顯示這一句</button><button id="shortcuts" aria-haspopup="dialog" aria-controls="shortcut-dialog">快捷鍵 <kbd>?</kbd></button></div>
-  <div class="options progress-row"><span id="progress-status">播放進度會自動儲存在此瀏覽器。</span><button id="restart" title="重設這集的播放進度">從頭開始</button></div>
+  <div class="options progress-row"><span id="progress-status" hidden></span><button id="restart" title="重設這集的播放進度">從頭開始</button></div>
   </details>
   <p class="status" id="status" role="status">點選文字可跳播；空白鍵播放／暫停，左右方向鍵切換句子。</p>
  </section>
@@ -93,7 +93,7 @@ let frame=null,currentChapter=-1,lastClock='',lastSeek=-1;
 // Keep the original storage namespace so existing progress survives the rebrand.
 const progressKey=`podcast-practice:progress:v1:${DATA.audio_sha256||DATA.fingerprint||location.pathname}`;
 let progressReady=false,restorePending=true,storageAvailable=true,lastProgressWrite=0,lastProgressSnapshot='';
-function progressUnavailable(){storageAvailable=false;$('progress-status').textContent='此瀏覽器無法儲存進度；播放仍可正常使用。';}
+function progressUnavailable(){storageAvailable=false;$('progress-status').textContent='此瀏覽器無法儲存進度；播放仍可正常使用。';$('progress-status').hidden=false;}
 function readProgress(){
  try{const value=JSON.parse(localStorage.getItem(progressKey));return value?.version===1&&Number.isFinite(value.time)&&value.time>=0?value:null;}
  catch(error){if(!(error instanceof SyntaxError))progressUnavailable();return null;}
@@ -110,7 +110,6 @@ function saveProgress(force=false){
  try{
   localStorage.setItem(progressKey,JSON.stringify({version:1,time,duration,selected,updatedAt:now}));
   lastProgressSnapshot=snapshot;lastProgressWrite=now;
-  const message=`已儲存至此瀏覽器 · ${fmt(time)}`;if($('progress-status').textContent!==message)$('progress-status').textContent=message;
  }catch(error){progressUnavailable();}
 }
 function restoreProgress(){
