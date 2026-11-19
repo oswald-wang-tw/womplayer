@@ -226,7 +226,10 @@ uv run womplayer youtube 'https://www.youtube.com/watch?v=VIDEO_ID' --download-v
   When overlapping captions leave an extremely short speech fragment, it is
   joined to nearby captions within their original time bounds. All spoken words
   remain in the transcript; isolated fragments that cannot be joined produce a
-  timestamped error instead of an unusable alignment window.
+  timestamped error instead of an unusable alignment window. Caption end times
+  use the downloaded audio's measured duration. A short final fragment cut off by
+  the end of the media can use a small amount of preceding audio for alignment,
+  within the gap after the previous caption; its words stay near the media end.
   Uppercase caption words retain their displayed spelling while ordinary words
   are aligned as speech rather than spelled out letter by letter; common
   initialisms such as BBC and U.S. retain their spelling pronunciation.

@@ -407,6 +407,36 @@ def test_youtube_reuses_failed_downloads_and_refreshes_completed_sources(
         assert command[command.index("--reuse-source-dir") + 1] == str(folder)
 
 
+@pytest.mark.parametrize("completed_has_inputs", [False, True])
+def test_failed_refresh_reuses_saved_inputs_across_an_intervening_completed_job(
+    running_server, fake_build, completed_has_inputs
+):
+    server, request, headers, _ = running_server
+    url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    for char, state, has_inputs in [
+        ("a", "failed", True),
+        ("b", "completed", completed_has_inputs),
+        ("c", "failed", False),
+    ]:
+        identifier = char * 32
+        folder = server.uploads.root / identifier
+        folder.mkdir(parents=True)
+        if has_inputs:
+            for name in ["audio.mp3", "captions.json", "source.json", "video.mp4"]:
+                (folder / name).write_bytes(b"saved input")
+        server.uploads._jobs[identifier] = {
+            "id": identifier, "state": state, "source": "youtube", "url": url
+        }
+    body = json.dumps({"url": url, "download_video": True})
+    assert request(
+        "POST", "/api/youtube", body, {**headers, "Content-Type": "application/json"}
+    )[0] == 202
+    server.uploads._thread.join(timeout=5)
+    command = fake_build[1][0][0]
+    expected = server.uploads.root / (("b" if completed_has_inputs else "a") * 32)
+    assert command[command.index("--reuse-source-dir") + 1] == str(expected)
+
+
 @pytest.mark.parametrize(
     "origin",
     [

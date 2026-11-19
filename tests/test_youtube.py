@@ -190,6 +190,32 @@ def test_short_last_caption_joins_previous_but_does_not_reach_across_a_long_gap(
         caption_srt(captions([event(1000, 1020, "Yes."), event(10000, 12000, "Next topic.")]), 13)
 
 
+def test_media_end_fragment_uses_nearby_gap_without_moving_words_to_preceding_speech():
+    raw = captions(
+        [event(1097422, 1099812, "Oh my god."), event(1104583, 1106623, ">> Hey.")]
+    )
+    rows = parse_subtitles(caption_srt(raw, 1104.689342))
+    assert rows == [
+        ("Narrator", "Oh my god.", 1097.422, 1099.812),
+        ("Narrator", "Hey.", 1104.339, 1104.689),
+    ]
+
+
+def test_short_isolated_mid_media_caption_still_rejects_a_long_gap():
+    raw = captions([event(0, 2000, "Previous topic."), event(10000, 10100, "Hey.")])
+    with pytest.raises(PracticeError, match="無法與相鄰字幕合併"):
+        caption_srt(raw, 12)
+
+
+def test_media_end_context_does_not_overlap_previous_cue_or_extend_before_audio():
+    rows = parse_subtitles(
+        caption_srt(captions([event(0, 2900, "Previous."), event(2900, 4000, "Hey.")]), 3)
+    )
+    assert rows == [("Narrator", "Previous. Hey.", 0, 3)]
+    with pytest.raises(PracticeError, match="無法與相鄰字幕合併"):
+        caption_srt(captions([event(50, 1000, "Hey.")]), 0.1)
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -217,6 +243,7 @@ def fake_downloader(monkeypatch):
         "payload": captions([event(0, 2000, "Hello, world.")]),
         "audio_downloads": 0,
         "video_downloads": 0,
+        "audio_duration": 10,
     }
 
     class Downloader:
@@ -253,6 +280,12 @@ def fake_downloader(monkeypatch):
                     Path(template).write_bytes(b"MP4 fixture")
 
     monkeypatch.setattr(yt_dlp, "YoutubeDL", Downloader)
+    monkeypatch.setattr(
+        "podcast_practice.youtube.subprocess.run",
+        lambda *a, **kw: SimpleNamespace(
+            stdout=json.dumps({"format": {"duration": state["audio_duration"]}})
+        ),
+    )
     return state
 
 
@@ -281,6 +314,21 @@ def test_video_is_downloaded_only_when_selected_without_changing_source_identity
         k: v for k, v in with_video.items() if k != "imported"
     }
     assert fake_downloader["options"]["merge_output_format"] == "mp4"
+
+
+def test_new_download_clips_captions_to_actual_audio_instead_of_rounded_metadata(
+    tmp_path, fake_downloader
+):
+    fake_downloader["info"]["duration"] = 1105
+    fake_downloader["audio_duration"] = 1104.689342
+    fake_downloader["payload"] = captions(
+        [event(1097422, 1099812, "Oh my god."), event(1104583, 1106623, ">> Hey.")]
+    )
+    _, transcript, _ = download_youtube(Runtime(tmp_path / "runtime"), URL, tmp_path)
+    assert parse_subtitles(transcript.read_text()) == [
+        ("Narrator", "Oh my god.", 1097.422, 1099.812),
+        ("Narrator", "Hey.", 1104.339, 1104.689),
+    ]
 
 
 def test_missing_video_is_reported_as_failure(tmp_path, fake_downloader):
@@ -320,7 +368,7 @@ def test_reuses_downloaded_inputs_and_regenerates_captions_without_network(tmp_p
     assert (tmp_path / "transcript.srt").read_text() == "original transcript retained"
     assert (tmp_path / "captions.json").read_bytes() == raw
     assert "Yes. A new topic." in transcript.read_text()
-    assert metadata["imported"] == "original-time" and metadata["caption_revision"] == 3
+    assert metadata["imported"] == "original-time" and metadata["caption_revision"] == 4
     assert json.loads((tmp_path / "source.json").read_text()) == source
 
 

@@ -243,11 +243,13 @@ class Uploads:
         metadata = youtube_request(data)
         Runtime(self.runtime_dir).require_ready()
         with self._lock:
+            retrying = False
             for previous in reversed(self._jobs.values()):
                 if previous.get("source") != "youtube" or previous.get("url") != metadata["url"]:
                     continue
-                if previous.get("state") != "failed":
+                if previous.get("state") != "failed" and not retrying:
                     break  # New imports after a completed job can refresh the online source.
+                retrying = True
                 folder = self.root / previous["id"]
                 names = ["audio.mp3", "captions.json", "source.json"]
                 if metadata["download_video"]:

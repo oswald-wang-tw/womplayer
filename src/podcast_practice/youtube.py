@@ -23,7 +23,7 @@ MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
 MAX_CAPTION_BYTES = 5 * 1024 * 1024
 MAX_DURATION = 3 * 60 * 60
 MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024
-CAPTION_REVISION = 3
+CAPTION_REVISION = 4
 CAPTION_EVENT = re.compile(
     r"\[(?:music|laugh(?:ter|ing|s)?|applause|silence|inaudible|crosstalk|"
     r"clears? throat|snorts?|sighs?|cheering|sound)[^\]]*\]",
@@ -31,19 +31,27 @@ CAPTION_EVENT = re.compile(
 )
 
 
-def caption_intervals(cues: list[list]) -> list[list]:
+def caption_intervals(cues: list[list], *, media_end: float | None = None) -> list[list]:
     """Keep clipped speaker interjections with adjacent speech, using source time bounds."""
 
-    def too_short(cue: list) -> bool:
+    def minimum_duration(cue: list) -> float:
         words = sum(len(spoken_tokens(w, caption_style=True)) for w in cue[2].split())
-        return cue[1] - cue[0] < max(0.35, words * 0.08)
+        return max(0.35, words * 0.08)
 
     result: list[list] = []
     index = 0
     while index < len(cues):
         cue = list(cues[index])
         index += 1
-        while too_short(cue):
+        while cue[1] - cue[0] < minimum_duration(cue):
+            if index == len(cues) and media_end is not None and cue[1] == media_end:
+                # A clipped final caption needs nearby context, not a merge across
+                # an outro pause that could align its word to much earlier speech.
+                boundary = result[-1][1] if result else 0
+                minimum = minimum_duration(cue)
+                if cue[1] - boundary >= minimum:
+                    cue[0] = max(boundary, cue[1] - minimum)
+                    break
             if (
                 index < len(cues)
                 and cues[index][0] - cue[1] <= 0.5
@@ -66,6 +74,36 @@ def caption_intervals(cues: list[list]) -> list[list]:
 
 class CachedDownloadError(PracticeError):
     """Saved downloads are unavailable or invalid, so a fresh download is needed."""
+
+
+def _audio_duration(runtime: Runtime, audio: Path) -> float:
+    """Use the downloaded audio's duration rather than YouTube's rounded metadata."""
+    result = subprocess.run(
+        [
+            str(runtime.ffprobe),
+            "-v",
+            "error",
+            "-f",
+            "mp3",
+            "-protocol_whitelist",
+            "file,pipe",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(audio),
+        ],
+        env=runtime.environment(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=True,
+    )
+    duration = float(json.loads(result.stdout)["format"]["duration"])
+    if not math.isfinite(duration) or not 0 < duration <= MAX_DURATION + 2:
+        raise ValueError("Invalid downloaded audio duration")
+    return duration
 
 
 def reuse_youtube_source(
@@ -96,31 +134,7 @@ def reuse_youtube_source(
         ):
             raise ValueError("Saved source belongs to a different video")
         audio = folder / "audio.mp3"
-        result = subprocess.run(
-            [
-                str(runtime.ffprobe),
-                "-v",
-                "error",
-                "-f",
-                "mp3",
-                "-protocol_whitelist",
-                "file,pipe",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "json",
-                str(audio),
-            ],
-            env=runtime.environment(),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=30,
-            check=True,
-        )
-        duration = float(json.loads(result.stdout)["format"]["duration"])
-        if not math.isfinite(duration) or not 0 < duration <= MAX_DURATION + 2:
-            raise ValueError("Invalid saved audio duration")
+        duration = _audio_duration(runtime, audio)
     except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as exc:
         raise CachedDownloadError("已下載檔案未通過完整性檢查。") from exc
     transcript = folder / f"transcript-v{CAPTION_REVISION}.srt"
@@ -266,7 +280,9 @@ def caption_srt(payload: bytes, duration: float) -> str:
         return (
             "\n\n".join(
                 f"{index}\n{timestamp(start, comma=True)} --> {timestamp(end, comma=True)}\n{text}"
-                for index, (start, end, text) in enumerate(caption_intervals(cues), 1)
+                for index, (start, end, text) in enumerate(
+                    caption_intervals(cues, media_end=duration), 1
+                )
             )
             + "\n"
         )
@@ -343,6 +359,10 @@ def download_youtube(
             downloader.process_ie_result(info, download=True)
         if not audio.is_file() or not 0 < audio.stat().st_size <= MAX_DOWNLOAD_BYTES:
             raise PracticeError("沒有取得完整的 YouTube 音訊，請查看紀錄後重試。")
+        # Metadata can round the runtime up and leave the last cue beyond the real media.
+        duration = _audio_duration(runtime, audio)
+        transcript.write_text(caption_srt(payload, duration), encoding="utf-8")
+        parse_transcript(transcript, caption_style=True)
         if include_video:
             downloaded: dict[str, int] = {}
 
